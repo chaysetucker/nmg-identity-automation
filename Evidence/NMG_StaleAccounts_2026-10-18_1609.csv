@@ -1,0 +1,7 @@
+﻿"Name","SamAccountName","Department","Title","LastLogonDate","Enabled","Description"
+"TEST DO NOT USE","test.user","IT","Test Account","12/18/2022 2:07:33 PM","True","DO NOT USE"
+"svc_legacyfax","svc_legacyfax","Service Accounts","Service Account","5/27/2023 2:07:35 PM","True","Fax server, decommissioned"
+"Harold Grady","hgrady","IT","Systems Analyst","10/24/2023 2:07:32 PM","True",
+"svc_scanner","svc_scanner","Service Accounts","Service Account","5/11/2024 2:07:35 PM","True","Created by vendor, purpose unknown"
+"Marcus Webb 2","mwebb2","Operations","Registered Nurse","2/5/2025 2:07:33 PM","True","Duplicate account"
+"Roland Pace","rpace","Operations","Facilities Technician","8/13/2025 2:07:32 PM","True",
