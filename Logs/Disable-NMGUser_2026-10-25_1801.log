@@ -1,0 +1,29 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261025180146
+Username: NMG\Administrator
+RunAs User: NMG\Administrator
+Configuration Name: 
+Machine: WIN-7KRMGRTB84P (Microsoft Windows NT 10.0.17763.0)
+Host Application: C:\Windows\system32\WindowsPowerShell\v1.0\PowerShell_ISE.exe
+Process ID: 940
+PSVersion: 5.1.17763.2931
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.17763.2931
+BuildVersion: 10.0.17763.2931
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+
+  DISABLE-NMGUSER
+  Target : hgrady
+  Ticket : NMG-211
+  Run by : Administrator
+
+  STOP: ticket should look like NMG-0211
+**********************
+Windows PowerShell transcript end
+End time: 20261025180146
+**********************
