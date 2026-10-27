@@ -1,0 +1,45 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261027185033
+Username: NMG\Administrator
+RunAs User: NMG\Administrator
+Configuration Name: 
+Machine: WIN-7KRMGRTB84P (Microsoft Windows NT 10.0.17763.0)
+Host Application: C:\Windows\system32\WindowsPowerShell\v1.0\PowerShell_ISE.exe
+Process ID: 4844
+PSVersion: 5.1.17763.2931
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.17763.2931
+BuildVersion: 10.0.17763.2931
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+
+  OFFBOARD-NMGUSER
+  Target : iokoro
+  Ticket : NMG-0214
+  Run by : Administrator
+
+  All checks passed for Imani Okoro
+  Captured 2 memberships
+  Verified 2 memberships on disk
+  Disabled and stamped.
+  Password randomised
+  Removed: Operations-Users
+
+  Removed : 1
+  Moved to quarantine.
+
+  Account  : Imani Okoro (iokoro)
+  Ticket   : NMG-0214
+  Enabled  : False
+  Groups   : 0
+  Location : CN=Imani Okoro,OU=Disabled Users,DC=NMG,DC=com
+  Evidence : C:\Reports\Offboarding
+
+**********************
+Windows PowerShell transcript end
+End time: 20261027185034
+**********************

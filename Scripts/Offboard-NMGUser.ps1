@@ -10,10 +10,14 @@
     password, removes all group memberships, and moves the
     account to the Disabled Users OU.
 
-.EXAMPLE
-    .\Offboard-NMGUser.ps1 -Username "jdoe" -Ticket "NMG-0214" -WhatIf
-    Runs every check and reports what it would do, changing
-    nothing. Do this first, every time.
+    The script refuses to act, and changes nothing at all, if:
+      the account does not exist
+      the account is already disabled
+      the account appears to be a service account
+      the ticket is not in the form NMG-0000
+      the group export cannot be verified on disk
+    If the Disabled Users OU cannot be found, steps 1 to 4 are
+    completed and the script stops before the move.
 
 .PARAMETER Username
     The SamAccountName of the account to offboard. Mandatory.
@@ -21,14 +25,28 @@
 .PARAMETER Ticket
     The authorising ticket, in the form NMG-0000. Mandatory.
 
+.PARAMETER ReportPath
+    Where the evidence CSV files are written.
+    Default: C:\Reports\Offboarding
+
+.PARAMETER LogPath
+    Where the run transcript is written.
+    Default: C:\nmg-identity-automation\Logs
+
 .EXAMPLE
-    .\Disable-NMGUser.ps1 -Username "hgrady" -Ticket "NMG-0211" -WhatIf
-    Runs every check and reports what it would do, changing nothing.
+    .\Offboard-NMGUser.ps1 -Username "jdoe" -Ticket "NMG-0214" -WhatIf
+    Runs every check and reports what it would do, changing
+    nothing. Do this first, every time.
+
+.EXAMPLE
+    .\Offboard-NMGUser.ps1 -Username "jdoe" -Ticket "NMG-0214"
+    Performs the complete offboarding.
 
 .NOTES
     Author  : Chayse Tucker
     Created : 10/25/2026
-    Implements steps 1 and 2 and 3 and 4 of SOP-IAM-001.
+    Implements all five steps of SOP-IAM-001.
+    Renamed from Disable-NMGUser.ps1 once it performed all five.
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
@@ -57,17 +75,17 @@ foreach ($p in @($ReportPath, $LogPath)) {
 
 # Everything printed from here on ends up in a dated file.
 # Never print a credential after this line.
-Start-Transcript -Path "$LogPath\Disable-NMGUser_$stamp.log" | Out-Null
+Start-Transcript -Path "$LogPath\Offboard-NMGUser_$stamp.log" | Out-Null
 
 Write-Host ""
-Write-Host "  DISABLE-NMGUSER" -ForegroundColor Cyan
+Write-Host "  OFFBOARD-NMGUSER" -ForegroundColor Cyan
 Write-Host "  Target : $Username"
 Write-Host "  Ticket : $Ticket"
 Write-Host "  Run by : $env:USERNAME"
 Write-Host ""
 
 
-#--- THE FOUR CHECKS ----------------------------------------
+#--- GATE 1: THE FOUR CHECKS --------------------------------
 # Every one of these stops the script. A warning that scrolls
 # past at 4:50 on a Friday is a decoration, not a guardrail.
 
@@ -76,7 +94,7 @@ $user = Get-ADUser -Identity $Username -Properties * -ErrorAction SilentlyContin
 
 if (-not $user) {
     Write-Host "  STOP: no account named $Username" -ForegroundColor Red
-    Stop-Transcript | Out-Null
+    try { Stop-Transcript | Out-Null } catch { }
     return
 }
 
@@ -85,7 +103,7 @@ if ($user.Enabled -eq $false) {
     Write-Host "  STOP: $Username is already disabled." -ForegroundColor Yellow
     Write-Host "        Existing note: $($user.Description)" -ForegroundColor Gray
     Write-Host "        Re-running would overwrite that record." -ForegroundColor Gray
-    Stop-Transcript | Out-Null
+    try { Stop-Transcript | Out-Null } catch { }
     return
 }
 
@@ -93,14 +111,14 @@ if ($user.Enabled -eq $false) {
 if ($user.SamAccountName -like "svc_*" -or $user.Department -eq "Service Accounts") {
     Write-Host "  STOP: $Username looks like a service account." -ForegroundColor Red
     Write-Host "        Find its owner first. Different procedure." -ForegroundColor Gray
-    Stop-Transcript | Out-Null
+    try { Stop-Transcript | Out-Null } catch { }
     return
 }
 
 # CHECK 4: is the ticket a real shape?
 if ($Ticket -notmatch "^NMG-\d{4}$") {
-    Write-Host "  STOP: ticket should look like NMG-0211" -ForegroundColor Red
-    Stop-Transcript | Out-Null
+    Write-Host "  STOP: ticket should look like NMG-0000" -ForegroundColor Red
+    try { Stop-Transcript | Out-Null } catch { }
     return
 }
 
@@ -111,7 +129,11 @@ Write-Host "  All checks passed for $($user.Name)" -ForegroundColor Green
 # Runs on a WhatIf too. Reading changes nothing, and the record
 # is worth having either way.
 
-$groups = Get-ADPrincipalGroupMembership -Identity $Username
+# @() makes .Count reliable even when there is only one group.
+$groups = @(Get-ADPrincipalGroupMembership -Identity $Username)
+
+# Domain Users is the primary group and cannot be removed.
+$toRemove = @($groups | Where-Object { $_.Name -ne "Domain Users" })
 
 $user |
   Select-Object Name, SamAccountName, Department, Title,
@@ -126,11 +148,10 @@ $groups |
 
 Write-Host "  Captured $($groups.Count) memberships" -ForegroundColor Green
 
-#--- EDIT 2: THE VERIFICATION GATE --------------------------
-# Goes immediately AFTER the two Export-Csv lines in Block 4.
-#
-# Read the file back from disk. $groups tells you the query
-# worked. The file tells you the record actually exists.
+
+#--- GATE 2: VERIFY THE RECORD ON DISK ----------------------
+# $groups tells you the query worked. The file tells you the
+# record actually exists.
 #
 # Export-Csv does not write on a dry run, so this only checks
 # when the run is real. Otherwise every dry run would refuse.
@@ -157,10 +178,10 @@ if (-not $WhatIfPreference) {
     Write-Host "  Verified $($written.Count) memberships on disk" -ForegroundColor Green
 }
 
-#--- STEP 2: DISABLE ----------------------------------------
+
+#--- STEP 2: DISABLE AND STAMP ------------------------------
 # ShouldProcess is what makes -WhatIf work. Everything inside
-# this block is skipped on a WhatIf run, and you write nothing
-# extra to make that happen.
+# these blocks is skipped on a WhatIf run.
 
 if ($PSCmdlet.ShouldProcess($Username, "Disable account and stamp $Ticket")) {
 
@@ -172,15 +193,37 @@ if ($PSCmdlet.ShouldProcess($Username, "Disable account and stamp $Ticket")) {
     Write-Host "  Disabled and stamped." -ForegroundColor Green
 }
 
-if ($PSCmdlet.ShouldProcess($Username, "Remove $($written.Count) memberships")) {
 
-      $removed = @()
-      $failed  = @()
+#--- STEP 3: RANDOMISE THE PASSWORD -------------------------
+# Never printed, never stored. Nobody needs to know it.
+# Uses a cryptographic generator rather than Get-Random.
 
-    foreach ($g in $groups) {
+if ($PSCmdlet.ShouldProcess($Username, "Randomise password")) {
 
-        if ($g.Name -eq "Domain Users") { continue }
+    $bytes = New-Object byte[] 32
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
 
+    # The suffix guarantees upper, lower, digit and symbol.
+    $secure = ConvertTo-SecureString ([Convert]::ToBase64String($bytes) + "aA1!") `
+                -AsPlainText -Force
+
+    Set-ADAccountPassword -Identity $Username -Reset -NewPassword $secure
+    Remove-Variable bytes, secure
+
+    Write-Host "  Password randomised" -ForegroundColor Green
+}
+
+
+#--- STEP 4: REMOVE GROUP MEMBERSHIPS -----------------------
+# The only step that cannot be reversed. Gate 2 above is the
+# reason it is safe to reach this line.
+
+if ($PSCmdlet.ShouldProcess($Username, "Remove $($toRemove.Count) memberships")) {
+
+    $removed = @()
+    $failed  = @()
+
+    foreach ($g in $toRemove) {
         try {
             Remove-ADGroupMember -Identity $g -Members $Username `
                 -Confirm:$false -ErrorAction Stop
@@ -198,42 +241,49 @@ if ($PSCmdlet.ShouldProcess($Username, "Remove $($written.Count) memberships")) 
     if ($failed.Count -gt 0) {
         Write-Host "  FAILED  : $($failed.Count)" -ForegroundColor Red
         $failed | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
-    }  
-
+    }
 }
 
-#--- EDIT 2: BUILD THE TARGET PATH --------------------------
-# Get-ADDomain hands you the root at runtime, so the path is
-# never hardcoded and the script works in any domain.
+
+#--- GATE 3: CHECK THE DESTINATION --------------------------
+# Built from Get-ADDomain at runtime, so nothing is hardcoded
+# and the script works in any domain.
 
 $root   = (Get-ADDomain).DistinguishedName
 $target = "OU=Disabled Users,$root"
 
-# Look up where the account is RIGHT NOW. Not earlier.
-$dn = (Get-ADUser -Identity $Username).DistinguishedName
-
-
-# Check The Destination
-
-if (-not (Get-ADOrganizationalUnit -Filter "Name -eq 'Disabled Users'" `
-          -ErrorAction SilentlyContinue)) {
-
+# Check the exact path we are about to aim at, not just any
+# OU with the right name somewhere in the domain.
+if (-not (Get-ADOrganizationalUnit -Identity $target -ErrorAction SilentlyContinue)) {
     Write-Host "  STOP: Disabled Users OU not found." -ForegroundColor Red
     Write-Host "        Steps 1 to 4 are done. Move by hand." -ForegroundColor Gray
     try { Stop-Transcript | Out-Null } catch { }
     return
 }
 
+
+#--- STEP 5: MOVE TO DISABLED USERS -------------------------
+# Goes last, because moving an object changes its address and
+# every earlier step refers to the old one.
+
+# Look up where the account is RIGHT NOW. Not earlier.
+$dn = (Get-ADUser -Identity $Username).DistinguishedName
+
 if ($PSCmdlet.ShouldProcess($Username, "Move to Disabled Users")) {
-
-    Move-ADObject -Identity $dn -TargetPath $target
-
-    Write-Host "  Moved to quarantine." -ForegroundColor Green
+    try {
+        Move-ADObject -Identity $dn -TargetPath $target -ErrorAction Stop
+        Write-Host "  Moved to quarantine." -ForegroundColor Green
+    }
+    catch {
+        Write-Host "  MOVE FAILED: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "        Steps 1 to 4 are done. Move by hand." -ForegroundColor Gray
+    }
 }
 
 
-
 #--- SUMMARY ------------------------------------------------
+# Report where the account ended up. Somebody reading the log
+# in November should not have to go and look.
 
 $final = Get-ADUser -Identity $Username -Properties MemberOf
 
@@ -245,6 +295,5 @@ Write-Host "  Groups   : $($final.MemberOf.Count)"
 Write-Host "  Location : $($final.DistinguishedName)"
 Write-Host "  Evidence : $ReportPath"
 Write-Host ""
-
 
 try { Stop-Transcript | Out-Null } catch { }
