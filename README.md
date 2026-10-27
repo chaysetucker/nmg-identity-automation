@@ -29,6 +29,19 @@ The goal is to find first and fix later. These tools report on accounts;
 they don't change them. Disabling accounts without a documented process is
 how a small problem turns into an outage.
 
+## Before you start
+
+- Windows Server with the ActiveDirectory PowerShell module
+
+      Import-Module ActiveDirectory
+
+- Rights to modify user objects in the domain
+- An authorising ticket number, in the form NMG-0000
+- A Disabled Users OU at the root of the domain
+- A writable reports folder. Create it if it does not exist:
+
+      New-Item -Path "C:\Reports\Offboarding" -ItemType Directory -Force
+
 ## Tools
 
 ### Find-StaleAccounts.ps1
